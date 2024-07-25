@@ -1,0 +1,162 @@
+INITIALIZE PROJECT
+
+mkdir url-shortener
+cd url-shortener
+npm init -y
+
+INSTALL DEPENDENCIES
+
+npm install express mongoose valid-url shortid
+
+CONFIG/DB.JS
+
+const mongoose = require('mongoose');
+const db = 'your-mongodb-connection-string';
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(db, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('MongoDB Connected...');
+  } catch (err) {
+    console.error(err.message);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+const mongoose = require('mongoose');
+const db = 'your-mongodb-connection-string';
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(db, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('MongoDB Connected...');
+  } catch (err) {
+    console.error(err.message);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+
+MODELS/URLS.JS
+
+const mongoose = require('mongoose');
+
+const UrlSchema = new mongoose.Schema({
+  urlCode: String,
+  longUrl: String,
+  shortUrl: String,
+  date: {
+    type: String,
+    default: Date.now
+  }
+});
+
+module.exports = mongoose.model('Url', UrlSchema);
+
+CONTROLLERS/URLCONTROLLERS.JS
+
+const validUrl = require('valid-url');
+const shortid = require('shortid');
+const Url = require('../models/Url');
+
+const baseUrl = 'http://localhost:5000';
+
+const createShortUrl = async (req, res) => {
+  const { longUrl } = req.body;
+
+  if (!validUrl.isUri(baseUrl)) {
+    return res.status(401).json('Invalid base URL');
+  }
+
+  const urlCode = shortid.generate();
+
+  if (validUrl.isUri(longUrl)) {
+    try {
+      let url = await Url.findOne({ longUrl });
+
+      if (url) {
+        res.json(url);
+      } else {
+        const shortUrl = baseUrl + '/' + urlCode;
+
+        url = new Url({
+          longUrl,
+          shortUrl,
+          urlCode,
+          date: new Date()
+        });
+
+        await url.save();
+        res.json(url);
+      }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json('Server error');
+    }
+  } else {
+    res.status(401).json('Invalid long URL');
+  }
+};
+
+const redirectUrl = async (req, res) => {
+  try {
+    const url = await Url.findOne({ urlCode: req.params.code });
+
+    if (url) {
+      return res.redirect(url.longUrl);
+    } else {
+      return res.status(404).json('No URL found');
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json('Server error');
+  }
+};
+
+module.exports = {
+  createShortUrl,
+  redirectUrl
+};
+
+ROUTES/URL.JS
+
+const express = require('express');
+const router = express.Router();
+const { createShortUrl, redirectUrl } = require('../controllers/urlController');
+
+router.post('/shorten', createShortUrl);
+router.get('/:code', redirectUrl);
+
+module.exports = router;
+
+SERVER.JS
+
+const express = require('express');
+const connectDB = require('./config/db');
+const url = require('./routes/url');
+
+const app = express();
+
+// Connect to database
+connectDB();
+
+// Middleware
+app.use(express.json());
+
+// Routes
+app.use('/api/url', url);
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+START SERVER
+
+node server.js
